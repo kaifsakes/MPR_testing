@@ -1,0 +1,112 @@
+MPR121 Portable C Driver Documentation
+======================================
+
+Overview
+--------
+This driver provides a portable, hardware-agnostic C interface for the MPR121 capacitive touch sensor. It is designed to be used on any microcontroller or platform. All I2C communication is abstracted via user-supplied function pointers, so you can use it with any I2C implementation (bare metal, RTOS, Linux, etc).
+
+Key Features
+------------
+- No dependencies on ESP-IDF, Arduino, or FreeRTOS.
+- All I2C access is via function pointers you provide.
+- Simple API for initialization, configuration, threshold setting, and touch status reading.
+- Suitable for any C project.
+
+Files
+-----
+- mpr121_driver.h: Header file with API and struct definitions.
+- mpr121_driver.c: Implementation file.
+- mpr121_driver_doc.txt: This documentation.
+
+How It Works
+------------
+You must provide two functions for I2C read and write. These are passed as function pointers to the driver. The driver never calls any hardware directly.
+
+Example I2C function signatures:
+    int my_i2c_write(void *context, uint8_t addr, uint8_t reg, const uint8_t *data, uint16_t len);
+    int my_i2c_read(void *context, uint8_t addr, uint8_t reg, uint8_t *data, uint16_t len);
+
+- context: a pointer you supply (can be NULL or a struct with your I2C bus info)
+- addr: 7-bit I2C address of the MPR121 (usually 0x5A)
+- reg: register address to access
+- data: pointer to data buffer
+- len: number of bytes to read/write
+- Return 0 on success, nonzero on error
+
+API Reference
+-------------
+
+// Driver state struct
+    typedef struct {
+        void *i2c_context;
+        mpr121_i2c_write_fn i2c_write;
+        mpr121_i2c_read_fn i2c_read;
+        uint8_t address;
+        uint16_t last_touch;
+        uint16_t last_release;
+    } mpr121_t;
+
+// Initialize the driver struct (does not touch hardware)
+    void mpr121_init(mpr121_t *dev, void *i2c_context, mpr121_i2c_write_fn write_fn, mpr121_i2c_read_fn read_fn, uint8_t address);
+
+// Reset and configure the MPR121 (returns 0 on success)
+    int mpr121_configure(mpr121_t *dev, uint8_t touch_thresh, uint8_t release_thresh);
+
+// Read current touch status (bitmask, 1=touch)
+    int mpr121_read_touch(mpr121_t *dev, uint16_t *touch_bits);
+
+// Set touch/release threshold for all electrodes
+    int mpr121_set_thresholds(mpr121_t *dev, uint8_t touch_thresh, uint8_t release_thresh);
+
+// Set touch/release threshold for one electrode
+    int mpr121_set_electrode_threshold(mpr121_t *dev, uint8_t electrode, uint8_t touch_thresh, uint8_t release_thresh);
+
+// Read filtered data for one electrode
+    int mpr121_read_filtered(mpr121_t *dev, uint8_t electrode, uint16_t *value);
+
+// Read baseline data for one electrode
+    int mpr121_read_baseline(mpr121_t *dev, uint8_t electrode, uint16_t *value);
+
+Integration Steps
+-----------------
+1. Copy mpr121_driver.h and mpr121_driver.c into your project.
+2. Implement your own I2C read/write functions matching the signatures above.
+3. In your code, create an mpr121_t struct and call mpr121_init() with your I2C functions and context.
+4. Call mpr121_configure() to reset and configure the MPR121.
+5. Use mpr121_read_touch() to get the current touch status.
+6. Use other API functions as needed.
+
+Example Usage
+-------------
+#include "mpr121_driver.h"
+
+// Example I2C functions (replace with your own)
+int my_i2c_write(void *ctx, uint8_t addr, uint8_t reg, const uint8_t *data, uint16_t len) {
+    // Implement your I2C write here
+    return 0;
+}
+int my_i2c_read(void *ctx, uint8_t addr, uint8_t reg, uint8_t *data, uint16_t len) {
+    // Implement your I2C read here
+    return 0;
+}
+
+int main() {
+    mpr121_t mpr;
+    mpr121_init(&mpr, NULL, my_i2c_write, my_i2c_read, 0x5A);
+    if (mpr121_configure(&mpr, 12, 6) != 0) {
+        // Error initializing MPR121
+    }
+    uint16_t touch;
+    if (mpr121_read_touch(&mpr, &touch) == 0) {
+        // touch now contains the bitmask of touched electrodes
+    }
+    return 0;
+}
+
+Notes
+-----
+- The driver does not manage interrupts or timing. You must poll for touch status as needed.
+- For best results, call mpr121_configure() after power-up or reset.
+- You can adjust thresholds at any time.
+
+For more details, see the MPR121 datasheet.
