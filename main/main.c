@@ -83,11 +83,14 @@ void app_main(void) {
 
     mpr121_t mpr;
     mpr121_init(&mpr, NULL, espidf_i2c_write, espidf_i2c_read, MPR121_I2C_ADDR);
-    if (mpr121_configure(&mpr, 12, 6) != 0) {
+    // Aggressive thresholds for through-cover debug: touch=5, release=2
+    if (mpr121_configure(&mpr, 5, 2) != 0) {
         printf("Failed to configure MPR121!\n");
         return;
     }
     printf("MPR121 configured. Monitoring touch electrodes...\n");
+    // Re-initialize baseline once after configuration to align with current environment/cover
+    (void)mpr121_reinitialize_baseline(&mpr);
 
     uint16_t last_touch = 0;
     while (1) {

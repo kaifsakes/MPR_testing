@@ -43,6 +43,8 @@ int mpr121_set_electrode_threshold(mpr121_t *dev, uint8_t electrode, uint8_t tou
 int mpr121_read_filtered(mpr121_t *dev, uint8_t electrode, uint16_t *value);
 // Read baseline data for one electrode
 int mpr121_read_baseline(mpr121_t *dev, uint8_t electrode, uint16_t *value);
+// Force baseline re-initialization (sets CL bits in ECR to reinitialize baselines)
+int mpr121_reinitialize_baseline(mpr121_t *dev);
 
 #ifdef __cplusplus
 }
