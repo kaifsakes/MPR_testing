@@ -10,6 +10,8 @@ Key Features
 - No dependencies on ESP-IDF, Arduino, or FreeRTOS.
 - All I2C access is via function pointers you provide.
 - Simple API for initialization, configuration, threshold setting, and touch status reading.
+- Optimized for through-surface detection (plastic, glass, etc.)
+- Proximity mode support for virtual 13th electrode.
 - Suitable for any C project.
 
 Files
@@ -67,6 +69,12 @@ API Reference
 // Read baseline data for one electrode
     int mpr121_read_baseline(mpr121_t *dev, uint8_t electrode, uint16_t *value);
 
+// Force baseline re-initialization (sets CL bits in ECR to reinitialize baselines)
+    int mpr121_reinitialize_baseline(mpr121_t *dev);
+
+// Set proximity mode (virtual 13th electrode using multiple electrodes)
+    int mpr121_set_proximity_mode(mpr121_t *dev, uint8_t mode);
+
 Integration Steps
 -----------------
 1. Copy mpr121_driver.h and mpr121_driver.c into your project.
@@ -75,6 +83,15 @@ Integration Steps
 4. Call mpr121_configure() to reset and configure the MPR121.
 5. Use mpr121_read_touch() to get the current touch status.
 6. Use other API functions as needed.
+
+Through-Surface Detection Configuration
+---------------------------------------
+This driver is optimized for detecting touches through insulating materials like plastic or glass. The configuration includes:
+
+- Enhanced noise filtering (NCLR = 0x0E) for better noise immunity
+- Optimized charge/discharge settings (16μA charge current)
+- Balanced thresholds (touch=12, release=6) for through-surface applications
+- Proximity mode support for larger detection areas
 
 Example Usage
 -------------
@@ -93,20 +110,50 @@ int my_i2c_read(void *ctx, uint8_t addr, uint8_t reg, uint8_t *data, uint16_t le
 int main() {
     mpr121_t mpr;
     mpr121_init(&mpr, NULL, my_i2c_write, my_i2c_read, 0x5A);
+    
+    // Configure for through-surface detection
     if (mpr121_configure(&mpr, 12, 6) != 0) {
         // Error initializing MPR121
     }
+    
+    // Optional: Enable proximity mode for larger detection area
+    mpr121_set_proximity_mode(&mpr, 2); // Use electrodes 0-3 for proximity
+    
+    // Optional: Re-initialize baseline for current environment
+    mpr121_reinitialize_baseline(&mpr);
+    
     uint16_t touch;
     if (mpr121_read_touch(&mpr, &touch) == 0) {
         // touch now contains the bitmask of touched electrodes
+        // Check bit 12 for proximity detection if enabled
     }
     return 0;
 }
+
+Proximity Mode Options
+---------------------
+The mpr121_set_proximity_mode() function creates a virtual 13th electrode:
+- mode 0: Disabled (default)
+- mode 1: Use electrodes 0-1 for proximity
+- mode 2: Use electrodes 0-3 for proximity  
+- mode 3: Use electrodes 0-11 for proximity
+
+When enabled, bit 12 of the touch status will indicate proximity detection.
 
 Notes
 -----
 - The driver does not manage interrupts or timing. You must poll for touch status as needed.
 - For best results, call mpr121_configure() after power-up or reset.
 - You can adjust thresholds at any time.
+- For through-surface detection, consider calling mpr121_reinitialize_baseline() after configuration.
+- The default thresholds (12/6) are optimized for through-surface detection but can be adjusted as needed.
+
+Configuration Details
+--------------------
+Key register settings for through-surface detection:
+- NCLR (Noise Count Limit Rising): 0x0E (14 consecutive samples required)
+- CONFIG1 (CDC): 0x10 (16μA charge current)
+- CONFIG2 (CDT): 0x20 (0.5μs encoding, 1ms period)
+- Default thresholds: Touch=12, Release=6
 
 For more details, see the MPR121 datasheet.

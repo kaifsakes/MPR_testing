@@ -83,8 +83,8 @@ void app_main(void) {
 
     mpr121_t mpr;
     mpr121_init(&mpr, NULL, espidf_i2c_write, espidf_i2c_read, MPR121_I2C_ADDR);
-    // Aggressive thresholds for through-cover debug: touch=5, release=2
-    if (mpr121_configure(&mpr, 5, 2) != 0) {
+    // Optimized thresholds for through-surface detection: touch=12, release=6 (matches Python driver)
+    if (mpr121_configure(&mpr, 12, 6) != 0) {
         printf("Failed to configure MPR121!\n");
         return;
     }

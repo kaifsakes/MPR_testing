@@ -45,6 +45,8 @@ int mpr121_read_filtered(mpr121_t *dev, uint8_t electrode, uint16_t *value);
 int mpr121_read_baseline(mpr121_t *dev, uint8_t electrode, uint16_t *value);
 // Force baseline re-initialization (sets CL bits in ECR to reinitialize baselines)
 int mpr121_reinitialize_baseline(mpr121_t *dev);
+// Set proximity mode (virtual 13th electrode using multiple electrodes)
+int mpr121_set_proximity_mode(mpr121_t *dev, uint8_t mode);
 
 #ifdef __cplusplus
 }

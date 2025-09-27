@@ -60,39 +60,61 @@ int mpr121_configure(mpr121_t *dev, uint8_t touch_thresh, uint8_t release_thresh
         err = mpr121_write_reg(dev, MPR121_REG_ELE0_R + i*2, release_thresh);
         if (err) return err;
     }
-    // Filter and global config (typical values)
-    err |= mpr121_write_reg(dev, MPR121_REG_MHDR, 0x01);
-    err |= mpr121_write_reg(dev, MPR121_REG_NHDR, 0x01);
-    err |= mpr121_write_reg(dev, MPR121_REG_NCLR, 0x04);
-    err |= mpr121_write_reg(dev, MPR121_REG_FDLR, 0x00);
-    err |= mpr121_write_reg(dev, MPR121_REG_MHDF, 0x01);
-    err |= mpr121_write_reg(dev, MPR121_REG_NHDF, 0x05);
-    err |= mpr121_write_reg(dev, MPR121_REG_NCLF, 0x01);
-    err |= mpr121_write_reg(dev, MPR121_REG_FDLF, 0x00);
-    err |= mpr121_write_reg(dev, MPR121_REG_NHDT, 0x00);
-    err |= mpr121_write_reg(dev, MPR121_REG_NCLT, 0x00);
-    err |= mpr121_write_reg(dev, MPR121_REG_FDLT, 0x00);
+    // Filter and global config (optimized for through-surface detection)
+    err |= mpr121_write_reg(dev, MPR121_REG_MHDR, 0x01);   // MHDR (max half delta rising)
+    err |= mpr121_write_reg(dev, MPR121_REG_NHDR, 0x01);   // NHDR (noise half delta rising)
+    err |= mpr121_write_reg(dev, MPR121_REG_NCLR, 0x0E);   // NCLR (noise count limit rising) - INCREASED for better through-surface detection
+    err |= mpr121_write_reg(dev, MPR121_REG_FDLR, 0x00);   // FDLR (filter delay count limit rising)
+    err |= mpr121_write_reg(dev, MPR121_REG_MHDF, 0x01);   // MHDF (max half delta falling)
+    err |= mpr121_write_reg(dev, MPR121_REG_NHDF, 0x05);   // NHDF (noise half delta falling)
+    err |= mpr121_write_reg(dev, MPR121_REG_NCLF, 0x01);   // NCLF (noise count limit falling)
+    err |= mpr121_write_reg(dev, MPR121_REG_FDLF, 0x00);   // FDLF (filter delay count limit falling)
+    err |= mpr121_write_reg(dev, MPR121_REG_NHDT, 0x00);   // NHDT (noise half delta touched)
+    err |= mpr121_write_reg(dev, MPR121_REG_NCLT, 0x00);   // NCLT (noise count limit touched)
+    err |= mpr121_write_reg(dev, MPR121_REG_FDLT, 0x00);   // FDLT (filter delay count limit touched)
+    
+    // Proximity filter settings (same as electrode filters - matches Python driver)
+    err |= mpr121_write_reg(dev, 0x36, 0x01);   // MPR121_MHDPROXR (max half delta proximity rising)
+    err |= mpr121_write_reg(dev, 0x37, 0x01);   // MPR121_NHDPROXR (noise half delta proximity rising)
+    err |= mpr121_write_reg(dev, 0x38, 0x0E);   // MPR121_NCLPROXR (noise count limit proximity rising)
+    err |= mpr121_write_reg(dev, 0x39, 0x00);   // MPR121_FDLPROXR (filter delay count limit proximity rising)
+    err |= mpr121_write_reg(dev, 0x3A, 0x01);   // MPR121_MHDPROXF (max half delta proximity falling)
+    err |= mpr121_write_reg(dev, 0x3B, 0x05);   // MPR121_NHDPROXF (noise half delta proximity falling)
+    err |= mpr121_write_reg(dev, 0x3C, 0x01);   // MPR121_NCLPROXF (noise count limit proximity falling)
+    err |= mpr121_write_reg(dev, 0x3D, 0x00);   // MPR121_FDLPROXF (filter delay count limit proximity falling)
+    err |= mpr121_write_reg(dev, 0x3E, 0x00);   // MPR121_NHDPROXT (noise half delta proximity touched)
+    err |= mpr121_write_reg(dev, 0x3F, 0x00);   // MPR121_NCLPROXT (noise count limit proximity touched)
+    err |= mpr121_write_reg(dev, 0x40, 0x00);   // MPR121_FDLPROXT (filter delay count limit proximity touched)
+    
     // Debounce: DT=0, DR=0 -> 0x00 (fastest response for debug)
     err |= mpr121_write_reg(dev, MPR121_REG_DEBOUNCE, 0x00);
-    // CONFIG1 (0x5C): FFI[7:6]=00, CDC[5:0]=0x3F (63uA max)
-    err |= mpr121_write_reg(dev, MPR121_REG_CONFIG1, 0x3F);
-    // CONFIG2 (0x5D): CDT=111 (32us), SFI=00 (min filter), ESI=001 (~1ms) -> 0xE1
-    err |= mpr121_write_reg(dev, MPR121_REG_CONFIG2, 0xE1);
+    // CONFIG1 (0x5C): FFI[7:6]=00, CDC[5:0]=0x10 (16uA - matches Python driver)
+    err |= mpr121_write_reg(dev, MPR121_REG_CONFIG1, 0x10);
+    // CONFIG2 (0x5D): CDT=100 (0.5us encoding), SFI=00 (min filter), ESI=000 (1ms period) -> 0x20
+    err |= mpr121_write_reg(dev, MPR121_REG_CONFIG2, 0x20);
     if (err) return err;
 
-    // Optional: per-electrode CDC/CDT boost (useful for through-cover)
+    // Per-electrode CDC/CDT boost (optimized for through-surface detection)
     for (uint8_t ch = 0; ch < MPR121_NUM_ELECTRODES; ch++) {
-        err |= mpr121_write_reg(dev, 0x5F + ch, 0x3F); // CDCx = 63uA
-        err |= mpr121_write_reg(dev, 0x6C + ch, 0x07); // CDTx ≈ 32us encoding
+        err |= mpr121_write_reg(dev, 0x5F + ch, 0x10); // CDCx = 16uA (matches global setting)
+        // Note: CDT registers (0x6C+) are shared between electrodes, handled by global CONFIG2
     }
     if (err) return err;
-    // Enable all electrodes, run mode
-    // ECR: First, initialize baselines: CL=10, ELE_EN=12
-    err = mpr121_write_reg(dev, MPR121_REG_ECR, 0x8C);
+
+    // Auto-configuration settings (matches Python driver exactly)
+    // USL = int(((3.3 - 0.7) * 256) / 3.3) = 202
+    err |= mpr121_write_reg(dev, 0x7D, 202);  // MPR121_AUTO_USL
+    // TL = int(((3.3 - 0.7) * 256 * 0.9) / 3.3) = 182  
+    err |= mpr121_write_reg(dev, 0x7F, 182);  // MPR121_AUTO_TL
+    // LSL = int(((3.3 - 0.7) * 256 * 0.65) / 3.3) = 131
+    err |= mpr121_write_reg(dev, 0x7E, 131);  // MPR121_AUTO_LSL
+    // Auto-config control
+    err |= mpr121_write_reg(dev, 0x7B, 0x0B); // MPR121_AUTO_CTRL0
     if (err) return err;
-    vTaskDelay(pdMS_TO_TICKS(1));
-    // Then switch to normal baseline tracking: CL=01, ELE_EN=12
-    err = mpr121_write_reg(dev, MPR121_REG_ECR, 0x4C);
+
+    // Enable all electrodes, run mode (matches Python driver exactly)
+    // ECR: 0x8F = CL=10 (initialize baselines), ELE_EN=15 (all electrodes + proximity)
+    err = mpr121_write_reg(dev, MPR121_REG_ECR, 0x8F);
     return err;
 }
 
@@ -144,4 +166,24 @@ int mpr121_read_baseline(mpr121_t *dev, uint8_t electrode, uint16_t *value) {
     if (err) return err;
     *value = ((uint16_t)val) << 2; // baseline is upper 8 bits, lower 2 bits always 0
     return 0;
+}
+
+int mpr121_set_proximity_mode(mpr121_t *dev, uint8_t mode) {
+    // Set the proximity mode (virtual 13th electrode)
+    // mode: 0 = disabled, 1 = EL0-EL1, 2 = EL0-EL3, 3 = EL0-EL11
+    uint8_t ELEPROX_EN = (mode & 3) << 4;
+    uint8_t ECR;
+    
+    // Read current ECR
+    int err = mpr121_read_reg(dev, MPR121_REG_ECR, &ECR);
+    if (err) return err;
+    
+    // Clear old proximity mode and set new one
+    ECR = (ECR & 0xCF) | ELEPROX_EN;
+    
+    // Stop chip, update ECR, then start chip
+    err = mpr121_write_reg(dev, MPR121_REG_ECR, 0x00);
+    if (err) return err;
+    err = mpr121_write_reg(dev, MPR121_REG_ECR, ECR);
+    return err;
 }
